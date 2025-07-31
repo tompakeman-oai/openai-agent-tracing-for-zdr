@@ -1,12 +1,33 @@
 [project]
 name = "agent-tracing-zdr"
 version = "0.1.0"
-description = "Add your description here"
+description = "This project adds a local tracing processor which can be used with the OpenAI Agents SDK to enable logging of spans and traces to a local SQLite database."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Tom Pakeman" }
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent"
+]
+
 dependencies = [
     "ipykernel>=6.30.0",
     "openai>=1.98.0",
     "openai-agents>=0.2.4",
     "python-dotenv>=1.1.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/tompakeman-oai/openai-agent-tracing-for-zdr"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

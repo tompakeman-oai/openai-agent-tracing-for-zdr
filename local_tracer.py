@@ -1,22 +1,33 @@
-from agents.tracing import TracingProcessor, Trace, Span
-from typing import Any
+"""
+This is a drop-in replacement or addition to OpenAI's AgentSDK tracing.
+
+This will create a new SQLite database in the current working directory.
+
+This is designed for use with OpenAI's Zero-Data-Retention plan so that trace data can still be stored locally and not sent to external servers.
+"""
+
+import json
 import logging
 import sqlite3
 from pathlib import Path
-import json
+from typing import Any
+
+from agents.tracing import Span, Trace, TracingProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1 # Bump every time the schema changes
+SCHEMA_VERSION = 1  # Bump every time the schema changes
 DB_NAME = "traces"
+
 
 class LocalTraceProcessor(TracingProcessor):
     """Stores traces and spans to a local SQLite database."""
+
     TRACE_TABLE = "traces"
     SPAN_TABLE = "spans"
-    
-    def __init__(self, db_path:str = None):
+
+    def __init__(self, db_path: str = None):
         """
         Args:
             db_path: The path to the SQLite database to use for storing traces and spans.
@@ -28,39 +39,50 @@ class LocalTraceProcessor(TracingProcessor):
         self.current_trace: Trace = None
         self.current_span: Span[Any] = None
 
-
     def _create_connection(self):
-        return sqlite3.connect(self.db_path, uri=True)
-    
+        """Creates a connection to the SQLite database."""
+        try:
+            return sqlite3.connect(self.db_path, uri=True)
+        except Exception as e:
+            logger.error(f"Failed to connect to SQLite DB at {self.db_path}: {e}")
+            raise
+
     def _create_tables(self):
-        with self._create_connection() as conn:
-            conn.execute(
-                f"""CREATE TABLE IF NOT EXISTS {self.TRACE_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trace_id TEXT,
-                workflow_name TEXT,
-                group_id TEXT,
-                metadata TEXT
-                )"""
-            )
-            conn.execute(
-                f"""CREATE TABLE IF NOT EXISTS {self.SPAN_TABLE} (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        span_id TEXT,
-                        trace_id TEXT,
-                        parent_id TEXT,
-                        started_at TIMESTAMPTZ,
-                        ended_at TIMESTAMPTZ,
-                        span_data TEXT,
-                        error TEXT
-                )"""
-            )
-            conn.commit()
+        """Creates the tables in the SQLite database."""
+        try:
+            with self._create_connection() as conn:
+                conn.execute(
+                    f"""CREATE TABLE IF NOT EXISTS {self.TRACE_TABLE} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trace_id TEXT,
+                    workflow_name TEXT,
+                    group_id TEXT,
+                    metadata TEXT
+                    )"""
+                )
+                conn.execute(
+                    f"""CREATE TABLE IF NOT EXISTS {self.SPAN_TABLE} (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            span_id TEXT,
+                            trace_id TEXT,
+                            parent_id TEXT,
+                            started_at TIMESTAMPTZ,
+                            ended_at TIMESTAMPTZ,
+                            span_data TEXT,
+                            error TEXT
+                    )"""
+                )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create tables: {e}")
+            raise
 
     def on_trace_start(self, trace: Trace) -> None:
+        """Called when a trace starts."""
         self.current_trace = trace
-    
+
     def on_trace_end(self, trace: Trace) -> None:
+        """Called when a trace ends."""
         sql = f"""
             INSERT INTO {self.TRACE_TABLE} (
                 trace_id, workflow_name, group_id, metadata
@@ -70,17 +92,22 @@ class LocalTraceProcessor(TracingProcessor):
             trace.trace_id,
             trace.name,
             trace.group_id,
-            json.dumps(trace.metadata)
+            json.dumps(trace.metadata),
         ]
-        with self._create_connection() as conn:
-            conn.execute(sql, values)
-            conn.commit()
+        try:
+            with self._create_connection() as conn:
+                conn.execute(sql, values)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to insert trace {trace.trace_id}: {e}")
         self.current_trace = None
-    
+
     def on_span_start(self, span: Span[Any]) -> None:
+        """Called when a span starts."""
         self.current_span = span
-    
+
     def on_span_end(self, span: Span[Any]) -> None:
+        """Called when a span ends."""
         sql = f"""
             INSERT INTO {self.SPAN_TABLE} (
                 span_id, trace_id, parent_id, started_at, ended_at, span_data, error
@@ -95,22 +122,29 @@ class LocalTraceProcessor(TracingProcessor):
             json.dumps(span.export()),
             span.error,
         ]
-        with self._create_connection() as conn:
-            conn.execute(sql, values)
-            conn.commit()
+        try:
+            with self._create_connection() as conn:
+                conn.execute(sql, values)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to insert span {span.span_id}: {e}")
         self.current_span = None
-
 
     def shutdown(self) -> None:
         """Called when the application stops."""
-        self.force_flush()
- 
+        try:
+            self.force_flush()
+        except Exception as e:
+            logger.error(f"Error during shutdown force_flush: {e}")
+
     def force_flush(self):
         """Forces an immediate flush of all queued spans/traces."""
-        if self.current_trace:
-            self.on_trace_end(self.current_trace)
-        if self.current_span:
-            self.on_span_end(self.current_span)
+        try:
+            if self.current_trace:
+                self.on_trace_end(self.current_trace)
+            if self.current_span:
+                self.on_span_end(self.current_span)
+        except Exception as e:
+            logger.error(f"Error during force_flush: {e}")
         self.current_trace = None
         self.current_span = None
-    
