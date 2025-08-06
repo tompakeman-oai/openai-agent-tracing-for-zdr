@@ -120,7 +120,7 @@ class LocalTraceProcessor(TracingProcessor):
             span.started_at,
             span.ended_at,
             json.dumps(span.export()),
-            span.error,
+            json.dumps(span.error),
         ]
         try:
             with self._create_connection() as conn:
