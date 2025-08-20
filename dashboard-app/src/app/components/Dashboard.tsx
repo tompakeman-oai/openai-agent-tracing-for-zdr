@@ -61,13 +61,13 @@ const getIcon = (type: string) => {
 
 const TitleBar = () => {
   const {
-    setDashboardView,
+    updateDashboardView,
     dashboardView,
     currentTraceDetail,
   } = useAppContext();
 
   const handleClick = () => {
-    setDashboardView("traceList");
+    updateDashboardView("traces", null);
   };
 
   return (
@@ -278,11 +278,11 @@ const TraceList = () => {
 };
 
 const TraceListItem = ({ trace }: { trace: Trace }) => {
-  const { setDashboardView, viewDetailedTrace } = useAppContext();
+  const { updateDashboardView, viewDetailedTrace } = useAppContext();
 
   const handleClick = () => {
     viewDetailedTrace(trace);
-    setDashboardView("traceDetail");
+    updateDashboardView("traces", trace.trace_id);
   };
 
   return (
@@ -370,8 +370,8 @@ const SpanListItem = ({
 
   return (
     <div
-      className="grid grid-cols-5 gap-2 px-2 hover:bg-gray-100 cursor-pointer"
-      style={{ gridTemplateColumns: "70% 30%", paddingLeft: `${level * 2}rem` }}
+      className="w-full grid grid-cols-[7fr_3fr] gap-2 px-2 hover:bg-gray-100 cursor-pointer"
+      style={{ paddingLeft: `${level * 2}rem` }}
       onClick={() => setCurrentSpanDetail(span)}
     >
       <div className="flex flex-row gap-2 p-2 items-center border-b border-gray-200">
@@ -384,12 +384,13 @@ const SpanListItem = ({
           </h2>
         }
       </div>
-      <div className="gap-2 items-center w-full grid grid-cols-2" style={{gridTemplateColumns: '40% 60%'}}>
+      <div className="gap-2 items-center w-full grid grid-cols-[2fr_3fr]">
         <span className="text-xs text-gray-500">
           {duration.toLocaleString(undefined, { maximumFractionDigits: 2 })}ms
         </span>
-        <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
+        <div id='span-progress-bar-outer' className="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
           <div
+            id='span-progress-bar-inner'
             className={`h-full absolute ${colorClassMap[structuredSpan?.span_data?.type as keyof typeof colorClassMap].bg}`}
             style={{
               left: `${startPercent}%`,
@@ -465,7 +466,7 @@ const TraceDetail = () => {
 
   return (
     <div className="p-4 flex flex-row gap-4 h-full">
-      <div className="w-[70%]">
+      <div className="w-[70%] flex-none">
         <SpanList
           spans={displaySpans}
           level={0} 
@@ -473,7 +474,7 @@ const TraceDetail = () => {
           tickSize={tickSize}
         />
       </div>
-      <div className="w-[30%]">
+      <div className="w-[30%] flex-none">
         <SpanDetail />
       </div>
     </div>

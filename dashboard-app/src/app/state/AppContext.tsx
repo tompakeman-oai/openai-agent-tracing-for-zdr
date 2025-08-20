@@ -45,10 +45,14 @@ type AppContextType = {
   setCurrentTraceDetail: (trace: Trace | null) => void;
   currentSpanDetail: Span | null;
   setCurrentSpanDetail: (span: Span | null) => void;
-  dashboardView: "traceList" | "traceDetail" | "charts";
-  setDashboardView: (view: "traceList" | "traceDetail" | "charts") => void;
+  dashboardView: AllowedViews;
+  setDashboardView: (view: AllowedViews) => void;
   viewDetailedTrace: (trace: Trace) => void;
+  updateDashboardView: (view: AllowedUrlPaths, subView: string | null) => void;
 };
+
+type AllowedViews = "traceList" | "traceDetail" | "charts";
+type AllowedUrlPaths = "charts" | "traces";
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -58,9 +62,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentTraceDetail, setCurrentTraceDetail] = useState<Trace | null>(null);
   const [currentSpanDetail, setCurrentSpanDetail] = useState<Span | null>(null);
   
-  const [dashboardView, setDashboardView] = useState<
-    "traceList" | "traceDetail" | "charts"
-  >("traceList");
+  const [dashboardView, setDashboardView] = useState<AllowedViews>("traceList");
 
   const initialState: FiltersState = {
     workflows: [],
@@ -78,6 +80,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     | { type: "SET_MAX_TRACE_ID"; payload: number };
 
   const [filters, setFilters] = useReducer(reducer, initialState);
+
+  const updateDashboardView = (view: AllowedUrlPaths, subView: string | null = null) => {
+    let path = "/";
+    if (view === "charts") {
+      path += "charts";
+      setDashboardView("charts");
+    } else if (view === "traces") {
+      path += "trace";
+      if (subView) {
+        path += `/${subView}`;
+        setDashboardView("traceDetail");
+      }
+      else {
+        setDashboardView("traceList");
+      }
+    }
+    window.history.pushState({ view, subView }, "", path);
+  };
 
   function reducer(state: FiltersState, action: FiltersAction): FiltersState {
     switch (action.type) {
@@ -231,6 +251,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     fetchLastTracesByWindow(null, null, 20);
   }, []);
 
+  // handle browser navigation and initial URL load
+  useEffect(() => {
+    const parsePath = () => {
+      const { pathname } = window.location;
+      const segments = pathname.split('/').filter(Boolean);
+      updateDashboardView(segments[0] as AllowedUrlPaths, segments[1] || null);
+    };
+    window.addEventListener('popstate', parsePath);
+    // initial load
+    parsePath();
+    return () => window.removeEventListener('popstate', parsePath);
+  }, []);
+
   const value: AppContextType = {
     filters,
     currentViewTraces,
@@ -243,6 +276,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     currentViewSpans,
     setCurrentViewSpans,
     viewDetailedTrace,
+    updateDashboardView,
     };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
