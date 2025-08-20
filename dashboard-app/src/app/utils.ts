@@ -35,3 +35,18 @@ export const buildOrderedSpanTree = (items: Span[]): OrderedSpanNode[] => {
   // Top-level nodes are those whose parent is null
   return buildLevel(null);
 }
+
+/**
+ * Truncate a string to a maximum length, adding an ellipsis if it's longer.
+ */
+export const truncateLabel = (s: string, max = 40) => {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+};
+
+/**
+ * Format a timestamp as a string.
+ */
+export const fmtTs = (ts: string | Date) => {
+  const d = typeof ts === "string" ? new Date(ts) : ts;
+  return d.toLocaleString();
+};

@@ -23,7 +23,7 @@ class RunSqlRequest(BaseModel):
 app = FastAPI()
 DB_PATH = "/Users/tompakeman/code/agent-tracing-zdr/traces_v1.db"
 
-def run_query(query: str, db_path=DB_PATH):
+def run_query(query: str, db_path: str = DB_PATH) -> list:
     db_path = Path(db_path)
     if not db_path.exists():
         raise FileNotFoundError(f"Database {db_path} does not exist.")
@@ -33,7 +33,7 @@ def run_query(query: str, db_path=DB_PATH):
         return [row for row in cursor.fetchall()]
 
 @app.post("/sql")
-async def run_sql(request: RunSqlRequest):
+async def run_sql(request: RunSqlRequest) -> Response:
     try:
         result = run_query(request.query)
         # Convert the result to a JSON-friendly format

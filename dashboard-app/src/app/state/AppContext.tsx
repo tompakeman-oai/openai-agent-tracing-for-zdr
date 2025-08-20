@@ -36,6 +36,7 @@ export type FiltersState = {
   maxTraceId: number | null;
 };
 
+
 type AppContextType = {
   filters: FiltersState;
   currentViewTraces: Trace[];
@@ -49,6 +50,7 @@ type AppContextType = {
   setDashboardView: (view: AllowedViews) => void;
   viewDetailedTrace: (trace: Trace) => void;
   updateDashboardView: (view: AllowedUrlPaths, subView: string | null) => void;
+  runSql: <C extends readonly string[]>(columns: C, query: string) => Promise<Array<Record<C[number], any>>>;
 };
 
 type AllowedViews = "traceList" | "traceDetail" | "charts";
@@ -119,20 +121,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   /*
    * Fetch all filterable values from the database
    */
-  const fetchAllFilters = () => {
-    fetch("/api/sql", {
+
+  const runSql = async <C extends readonly string[]>(
+    columns: C,
+    query: string
+  ): Promise<Array<Record<C[number], any>>> => {
+    const response = await fetch("/api/sql", {
       method: "POST",
-      body: JSON.stringify({
-        columns: ["workflow_name", "group_id", "trace_id"],
-        query:
-          "SELECT DISTINCT workflow_name, group_id, trace_id FROM traces GROUP BY 1, 2, 3",
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => response.json())
-      .then((data) => {
+      body: JSON.stringify({ columns, query }),
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) throw new Error(`SQL error: ${response.status} ${await response.text()}`);
+    return response.json();
+};
+
+  const fetchAllFilters = () => {
+    runSql(["workflow_name", "group_id", "trace_id"] as const,
+      "SELECT DISTINCT workflow_name, group_id, trace_id FROM traces GROUP BY 1, 2, 3"
+    ).then((data) => {
         setFilters({
           type: "SET_WORKFLOWS",
           payload: Array.from(
@@ -164,17 +170,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           payload: Math.max(...data.map((row: any) => row.id)),
         });
       });
-    fetch("/api/sql", {
-      method: "POST",
-      body: JSON.stringify({
-        columns: ["span_id"],
-        query: "SELECT span_id FROM spans GROUP BY 1",
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => response.json())
+    runSql(["span_id"] as const, "SELECT span_id FROM spans GROUP BY 1")
       .then((data) => {
         setFilters({
           type: "SET_SPAN_IDS",
@@ -195,7 +191,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     maxId: number | null = null,
     limit: number | null = null
   ) => {
-    let query = `SELECT trace_id, group_id, workflow_name, metadata FROM traces`;
+    let query = `SELECT id, trace_id, group_id, workflow_name, metadata FROM traces`;
     let filters = [];
     if (minId !== null) {
       filters.push(`id >= ${minId}`);
@@ -209,34 +205,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (limit !== null) {
       query += ` ORDER BY id DESC LIMIT ${limit}`;
     }
-    fetch("/api/sql", {
-      method: "POST",
-      body: JSON.stringify({
-        columns: ["trace_id", "group_id", "workflow_name", "metadata"],
-        query: query,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => response.json())
+    runSql(["id", "trace_id", "group_id", "workflow_name", "metadata"] as const, query)
       .then((data) => {
         setCurrentViewTraces(data);
       });
   };
 
   const fetchSpansForTrace = async (traceId: string) => {
-    const response = await fetch("/api/sql", {
-      method: "POST",
-      body: JSON.stringify({
-        columns: ["span_id", "trace_id", "parent_id", "started_at", "ended_at", "span_data", "error"],
-        query: `SELECT span_id, trace_id, parent_id, started_at, ended_at, span_data, error FROM spans WHERE trace_id = '${traceId}'`,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-    return response.json();
+    return await runSql([
+      "id",
+      "span_id",
+      "trace_id",
+      "parent_id",
+      "started_at",
+      "ended_at",
+      "span_data",
+      "error",
+    ] as const, `SELECT id, span_id, trace_id, parent_id, started_at, ended_at, span_data, error FROM spans WHERE trace_id = '${traceId}'`)
   };
 
   const viewDetailedTrace = async (trace: Trace) => {
@@ -277,6 +262,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setCurrentViewSpans,
     viewDetailedTrace,
     updateDashboardView,
+    runSql,
     };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
