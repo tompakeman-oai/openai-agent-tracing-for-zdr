@@ -36,6 +36,7 @@ class LocalTraceProcessor(TracingProcessor):
             db_path or Path(__file__).parent / f"{DB_NAME}_v{SCHEMA_VERSION}.db"
         )
         self._create_tables()
+        self._add_indexes() # TODO - test this
         self.current_trace: Trace = None
         self.current_span: Span[Any] = None
 
@@ -75,6 +76,20 @@ class LocalTraceProcessor(TracingProcessor):
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to create tables: {e}")
+            raise
+    
+    def _add_indexes(self):
+        """Adds indexes to the SQLite database."""
+        try:
+            with self._create_connection() as conn:
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_spans_started_at ON {self.SPAN_TABLE} (started_at)")
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON {self.SPAN_TABLE} (trace_id)")
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_spans_parent_id ON {self.SPAN_TABLE} (parent_id)")
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_traces_trace_id ON {self.TRACE_TABLE} (trace_id)")
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_traces_workflow ON {self.TRACE_TABLE} (workflow_name)")
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to add indexes: {e}")
             raise
 
     def on_trace_start(self, trace: Trace) -> None:

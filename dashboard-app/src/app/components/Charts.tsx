@@ -39,7 +39,6 @@ const GREEN = {
   translucent: "rgba(22,163,74,0.15)",
 };
 
-
 const buildLineDataset = (
   label: string,
   xs: string[],
@@ -56,7 +55,7 @@ const buildLineDataset = (
         borderColor: color,
         backgroundColor: fill ? GREEN.translucent : color,
         fill: fill,
-        tension: 0.25,
+        tension: 0.1,
         pointRadius: 0,
       },
     ],
@@ -117,7 +116,13 @@ const WINDOW_OPTIONS = [
 
 type WindowKey = (typeof WINDOW_OPTIONS)[number]["key"];
 
-const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
+const Card = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
   <div className="bg-white rounded-2xl shadow p-4 border border-gray-100">
     <div className="flex items-center justify-between mb-2">
       <h2 className="text-lg font-medium">{title}</h2>
@@ -125,8 +130,6 @@ const Card = ({ title, children }: { title: string; children: React.ReactNode })
     {children}
   </div>
 );
-
-
 
 const baseTimeSeriesOptions = (yTitle: string) => {
   return {
@@ -155,8 +158,14 @@ const buildQueries = (pgInterval: string, bucket: "minute" | "hour") => {
       : "strftime('%Y-%m-%d %H:00:00', started_at)";
   const tsFmt = bucket === "minute" ? "%Y-%m-%d %H:%M:00" : "%Y-%m-%d %H:00:00";
   const step = bucket === "minute" ? "minute" : "hour";
-  const timeFilter = pgInterval === "all" ? "" : `WHERE started_at >= datetime('now', '-${pgInterval}')`;
-  const whereAnd = pgInterval === "all" ? "" : ` AND started_at >= datetime('now', '-${pgInterval}')`;
+  const timeFilter =
+    pgInterval === "all"
+      ? ""
+      : `WHERE started_at >= datetime('now', '-${pgInterval}')`;
+  const whereAnd =
+    pgInterval === "all"
+      ? ""
+      : ` AND started_at >= datetime('now', '-${pgInterval}')`;
   const seriesStart =
     pgInterval === "all"
       ? `(SELECT COALESCE(strftime('${tsFmt}', MIN(started_at)), strftime('${tsFmt}', 'now')) FROM spans)`
@@ -232,7 +241,11 @@ const buildQueries = (pgInterval: string, bucket: "minute" | "hour") => {
     SELECT substr(ifnull(error,''), 1, 200) AS error_head, COUNT(*) AS n
     FROM spans
     WHERE error IS NOT NULL AND error <> ''
-      ${pgInterval === "all" ? "" : `AND started_at >= datetime('now', '-${pgInterval}')`}
+      ${
+        pgInterval === "all"
+          ? ""
+          : `AND started_at >= datetime('now', '-${pgInterval}')`
+      }
     GROUP BY 1
     ORDER BY n DESC
     LIMIT 20;
@@ -242,7 +255,11 @@ const buildQueries = (pgInterval: string, bucket: "minute" | "hour") => {
     WITH counts AS (
       SELECT trace_id, COUNT(*) AS n_spans
       FROM spans
-      ${pgInterval === "all" ? "" : `WHERE started_at >= datetime('now', '-${pgInterval}')`}
+      ${
+        pgInterval === "all"
+          ? ""
+          : `WHERE started_at >= datetime('now', '-${pgInterval}')`
+      }
       GROUP BY 1
     ),
     dist AS (
@@ -273,20 +290,36 @@ export const Charts: React.FC = () => {
     ts: [],
     n: [],
   });
-  const [latency, setLatency] = useState<{ ts: string[]; p95: number[]; avg: number[] }>(
-    { ts: [], p95: [], avg: [] }
-  );
-  const [errorRate, setErrorRate] = useState<{ ts: string[]; rate: number[]; errs: number[]; total: number[] }>(
-    { ts: [], rate: [], errs: [], total: [] }
-  );
-  const [concurrency, setConcurrency] = useState<{ ts: string[]; active: number[] }>({
+  const [latency, setLatency] = useState<{
+    ts: string[];
+    p95: number[];
+    avg: number[];
+  }>({ ts: [], p95: [], avg: [] });
+  const [errorRate, setErrorRate] = useState<{
+    ts: string[];
+    rate: number[];
+    errs: number[];
+    total: number[];
+  }>({ ts: [], rate: [], errs: [], total: [] });
+  const [concurrency, setConcurrency] = useState<{
+    ts: string[];
+    active: number[];
+  }>({
     ts: [],
     active: [],
   });
-  const [topErrors, setTopErrors] = useState<{ msg: string[]; n: number[] }>({ msg: [], n: [] });
-  const [traceSize, setTraceSize] = useState<{ bucket: string[]; n: number[] }>({ bucket: [], n: [] });
+  const [topErrors, setTopErrors] = useState<{ msg: string[]; n: number[] }>({
+    msg: [],
+    n: [],
+  });
+  const [traceSize, setTraceSize] = useState<{ bucket: string[]; n: number[] }>(
+    { bucket: [], n: [] }
+  );
 
-  const windowCfg = useMemo(() => WINDOW_OPTIONS.find((w) => w.key === win)!, [win]);
+  const windowCfg = useMemo(
+    () => WINDOW_OPTIONS.find((w) => w.key === win)!,
+    [win]
+  );
 
   // Fetch all datasets
   useEffect(() => {
@@ -295,15 +328,24 @@ export const Charts: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const queries = buildQueries(windowCfg.pgInterval, windowCfg.bucket as "minute" | "hour");
+        const queries = buildQueries(
+          windowCfg.pgInterval,
+          windowCfg.bucket as "minute" | "hour"
+        );
 
         const [q1, q2, q3, q4, q5, q6] = await Promise.all([
           runSql(["ts", "spans_started"] as const, queries.throughput),
           runSql(["ts", "avg_ms", "p95_ms"] as const, queries.latency),
-          runSql(["ts", "errors", "total", "error_rate"] as const, queries.errorRate),
+          runSql(
+            ["ts", "errors", "total", "error_rate"] as const,
+            queries.errorRate
+          ),
           runSql(["ts", "active_spans"] as const, queries.concurrency),
           runSql(["error_head", "n"] as const, queries.topErrors),
-          runSql(["bucket_label", "traces_in_bucket"] as const, queries.traceSize),
+          runSql(
+            ["bucket_label", "traces_in_bucket"] as const,
+            queries.traceSize
+          ),
         ]);
 
         if (cancelled) return;
@@ -361,8 +403,16 @@ export const Charts: React.FC = () => {
     cThroughput,
     () => ({
       type: "line",
-      data: buildLineDataset("Spans started", throughput.ts, throughput.n, GREEN.primary, true),
-      options: baseTimeSeriesOptions("Throughput (spans / " + windowCfg.bucket + ")"),
+      data: buildLineDataset(
+        "Spans started",
+        throughput.ts,
+        throughput.n,
+        GREEN.primary,
+        true
+      ),
+      options: baseTimeSeriesOptions(
+        "Throughput (spans / " + windowCfg.bucket + ")"
+      ),
     }),
     [throughput, windowCfg.bucket]
   );
@@ -378,7 +428,7 @@ export const Charts: React.FC = () => {
             label: "avg ms",
             data: latency.avg,
             pointRadius: 0,
-            tension: 0.25,
+            tension: 0.1,
             borderColor: GREEN.secondary,
             backgroundColor: GREEN.translucent,
             fill: false,
@@ -387,7 +437,7 @@ export const Charts: React.FC = () => {
             label: "p95 ms",
             data: latency.p95,
             pointRadius: 0,
-            tension: 0.25,
+            tension: 0.1,
             borderColor: GREEN.dark,
             backgroundColor: GREEN.translucent,
             fill: false,
@@ -403,7 +453,13 @@ export const Charts: React.FC = () => {
     cErrorRate,
     () => ({
       type: "line",
-      data: buildLineDataset("Error rate (%)", errorRate.ts, errorRate.rate, GREEN.dark, false),
+      data: buildLineDataset(
+        "Error rate (%)",
+        errorRate.ts,
+        errorRate.rate,
+        GREEN.dark,
+        false
+      ),
       options: baseTimeSeriesOptions("Error rate (%)"),
     }),
     [errorRate]
@@ -413,7 +469,13 @@ export const Charts: React.FC = () => {
     cConcurrency,
     () => ({
       type: "line",
-      data: buildLineDataset("Active spans", concurrency.ts, concurrency.active, GREEN.secondary, true),
+      data: buildLineDataset(
+        "Active spans",
+        concurrency.ts,
+        concurrency.active,
+        GREEN.secondary,
+        true
+      ),
       options: baseTimeSeriesOptions("Concurrency (active spans)"),
     }),
     [concurrency]
@@ -423,12 +485,21 @@ export const Charts: React.FC = () => {
     cTopErrors,
     () => ({
       type: "bar",
-      data: buildBarDataset("Occurrences", topErrors.msg, topErrors.n, GREEN.secondary),
+      data: buildBarDataset(
+        "Occurrences",
+        topErrors.msg,
+        topErrors.n,
+        GREEN.secondary
+      ),
       options: {
         responsive: true,
         plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
-          x: { ticks: { callback: (v: any) => truncateLabel(String(topErrors.msg[v])) } },
+          x: {
+            ticks: {
+              callback: (v: any) => truncateLabel(String(topErrors.msg[v])),
+            },
+          },
           y: { beginAtZero: true },
         },
       },
@@ -440,7 +511,12 @@ export const Charts: React.FC = () => {
     cTraceSize,
     () => ({
       type: "bar",
-      data: buildBarDataset("Traces", traceSize.bucket, traceSize.n, GREEN.primary),
+      data: buildBarDataset(
+        "Traces",
+        traceSize.bucket,
+        traceSize.n,
+        GREEN.primary
+      ),
       options: {
         responsive: true,
         plugins: { legend: { display: false }, tooltip: { enabled: true } },
@@ -478,9 +554,7 @@ export const Charts: React.FC = () => {
         </div>
       )}
 
-      {loading && (
-        <div className="text-sm text-gray-500">Loading metrics…</div>
-      )}
+      {loading && <div className="text-sm text-gray-500">Loading metrics…</div>}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card title="Throughput">

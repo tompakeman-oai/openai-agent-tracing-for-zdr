@@ -1,6 +1,7 @@
 import logging
 import json
 import sqlite3
+import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from logging_setup import setup_logging
@@ -13,7 +14,7 @@ setup_logging(log_to_file="api.log")
 logger = logging.getLogger(__name__)
 
 # Load environment variables from local .env file
-load_dotenv(dotenv_path="../.env", override=True)
+load_dotenv(dotenv_path="../../.env", override=True)
 
 class RunSqlRequest(BaseModel):
     columns: List[str]
@@ -21,7 +22,7 @@ class RunSqlRequest(BaseModel):
 
 # GLOBAL VARIABLES
 app = FastAPI()
-DB_PATH = "/Users/tompakeman/code/agent-tracing-zdr/traces_v1.db"
+DB_PATH = os.getenv("DEFAULT_DB_LOCATION")
 
 def run_query(query: str, db_path: str = DB_PATH) -> list:
     db_path = Path(db_path)

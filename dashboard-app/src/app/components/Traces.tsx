@@ -38,6 +38,7 @@ interface FilterDropdownProps {
 const colorClassMap: Record<string, {bg: string, text: string}> = {
   agent: {bg: "bg-blue-400", text: "text-blue-400"},
   function: {bg: "bg-green-400", text: "text-green-400"},
+  guardrail: {bg: "bg-purple-400", text: "text-purple-400"},
   tool: {bg: "bg-red-400", text: "text-red-400"},
   response: {bg: "bg-gray-400", text: "text-gray-400"},
   default: {bg: "bg-yellow-400", text: "text-yellow-400"},
@@ -47,6 +48,8 @@ const getIcon = (type: string) => {
   switch (type) {
     case "agent":
       return <AutoAwesome className={`${colorClassMap["agent"].text}`} />;
+    case "guardrail":
+      return <Code className={`${colorClassMap["guardrail"].text}`} />;
     case "function":
       return <Code className={`${colorClassMap["function"].text}`} />;
     case "tool":
@@ -58,43 +61,6 @@ const getIcon = (type: string) => {
   }
 };
 
-const TitleBar = () => {
-  const {
-    updateDashboardView,
-    dashboardView,
-    currentTraceDetail,
-  } = useAppContext();
-
-  const handleClick = () => {
-    updateDashboardView("traces", null);
-  };
-
-  return (
-    <header
-      className="w-full bg-gray-800 text-white shadow-md"
-      style={{ backgroundColor: PRIMARY_GRAY }}
-    >
-      <div className="max-w-7xl px-6 py-2 flex items-center flex-row gap-2">
-        {dashboardView === "traceList" ? (
-          <h1 className="text-2xl font-bold tracking-tight">Traces</h1>
-        ) : (
-          <>
-            <h1
-              className="text-2xl font-bold tracking-tight cursor-pointer hover:underline"
-              onClick={handleClick}
-              tabIndex={0}
-              role="button"
-              aria-label="Back to Traces"
-            >
-              Traces
-            </h1>
-            <h2>{`> ${currentTraceDetail?.trace_id}`}</h2>
-          </>
-        )}
-      </div>
-    </header>
-  );
-};
 
 const FilterDropdown = ({
   label,
@@ -390,7 +356,7 @@ const SpanListItem = ({
         <div id='span-progress-bar-outer' className="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
           <div
             id='span-progress-bar-inner'
-            className={`h-full absolute ${colorClassMap[structuredSpan?.span_data?.type as keyof typeof colorClassMap].bg}`}
+            className={`h-full absolute ${colorClassMap[structuredSpan?.span_data?.type as keyof typeof colorClassMap]?.bg || colorClassMap["default"].bg}`}
             style={{
               left: `${startPercent}%`,
               width: `${widthPercent}%`,

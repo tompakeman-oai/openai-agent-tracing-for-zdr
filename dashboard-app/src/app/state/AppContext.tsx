@@ -89,7 +89,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       path += "charts";
       setDashboardView("charts");
     } else if (view === "traces") {
-      path += "trace";
+      path += "traces";
       if (subView) {
         path += `/${subView}`;
         setDashboardView("traceDetail");
@@ -241,7 +241,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const parsePath = () => {
       const { pathname } = window.location;
       const segments = pathname.split('/').filter(Boolean);
-      updateDashboardView(segments[0] as AllowedUrlPaths, segments[1] || null);
+      const head = segments[0] || '';
+      updateDashboardView(head as AllowedUrlPaths, segments[1] || null);
     };
     window.addEventListener('popstate', parsePath);
     // initial load
