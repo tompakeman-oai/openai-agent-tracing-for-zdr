@@ -263,7 +263,7 @@ const buildQueries = (pgInterval: string, bucket: "minute" | "hour") => {
 };
 
 export const Charts: React.FC = () => {
-  const [win, setWin] = useState<WindowKey>("24h");
+  const [win, setWin] = useState<WindowKey>("30d");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { runSql } = useAppContext();
