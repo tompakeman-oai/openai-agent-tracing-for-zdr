@@ -224,6 +224,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ] as const, `SELECT id, span_id, trace_id, parent_id, started_at, ended_at, span_data, error FROM spans WHERE trace_id = '${traceId}'`)
   };
 
+  const fetchTraceByTraceId = async (traceId: string): Promise<Trace | null> => {
+    const rows = await runSql([
+      "id",
+      "trace_id",
+      "group_id",
+      "workflow_name",
+      "metadata",
+    ] as const, `SELECT id, trace_id, group_id, workflow_name, metadata FROM traces WHERE trace_id = '${traceId}' LIMIT 1`);
+    return (rows && rows.length > 0 ? rows[0] as Trace : null);
+  };
+
   const viewDetailedTrace = async (trace: Trace) => {
     const spans = await fetchSpansForTrace(trace.trace_id);
     setCurrentViewSpans(spans);
@@ -238,16 +249,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // handle browser navigation and initial URL load
   useEffect(() => {
-    const parsePath = () => {
+    const loadFromUrl = async () => {
       const { pathname } = window.location;
       const segments = pathname.split('/').filter(Boolean);
-      const head = segments[0] || '';
-      updateDashboardView(head as AllowedUrlPaths, segments[1] || null);
+      const head = (segments[0] || '') as AllowedUrlPaths;
+      const sub = segments[1] || null;
+
+      if (head === 'traces') {
+        if (sub) {
+          // Detail view: hydrate trace and spans
+          const trace = await fetchTraceByTraceId(sub);
+          if (trace) {
+            setCurrentTraceDetail(trace);
+            const spans = await fetchSpansForTrace(sub);
+            setCurrentViewSpans(spans);
+            setCurrentSpanDetail(spans[0] ?? null);
+            setDashboardView('traceDetail');
+          } else {
+            setDashboardView('traceList');
+          }
+        } else {
+          setDashboardView('traceList');
+        }
+      } else if (head === 'charts') {
+        setDashboardView('charts');
+      } else {
+        setDashboardView('traceList');
+      }
     };
-    window.addEventListener('popstate', parsePath);
+    const onPopState = () => { void loadFromUrl(); };
+    window.addEventListener('popstate', onPopState);
     // initial load
-    parsePath();
-    return () => window.removeEventListener('popstate', parsePath);
+    void loadFromUrl();
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   const value: AppContextType = {

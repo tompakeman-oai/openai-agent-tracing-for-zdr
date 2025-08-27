@@ -2,7 +2,7 @@
 import { useAppContext } from "../state/AppContext";
 import { useState, FocusEvent, useEffect } from "react";
 import { buildOrderedSpanTree, OrderedSpanNode } from "../utils";
-import { AutoAwesome, Build, Bolt, Code, Message } from "@mui/icons-material";
+import { AutoAwesome, Build, Bolt, Code, Message, List } from "@mui/icons-material";
 
 const PRIMARY_GRAY = "#44454b"; // medium gray
 
@@ -36,12 +36,13 @@ interface FilterDropdownProps {
 }
 
 const colorClassMap: Record<string, {bg: string, text: string}> = {
-  agent: {bg: "bg-blue-400", text: "text-blue-400"},
-  function: {bg: "bg-green-400", text: "text-green-400"},
+  agent: {bg: "bg-green-400", text: "text-green-400"},
+  function: {bg: "bg-orange-400", text: "text-orange-400"},
   guardrail: {bg: "bg-purple-400", text: "text-purple-400"},
   tool: {bg: "bg-red-400", text: "text-red-400"},
-  response: {bg: "bg-gray-400", text: "text-gray-400"},
-  default: {bg: "bg-yellow-400", text: "text-yellow-400"},
+  response: {bg: "bg-blue-400", text: "text-blue-400"},
+  mcp_tools: {bg: "bg-pink-400", text: "text-pink-400"},
+  default: {bg: "bg-gray-400", text: "text-gray-400"},
 };
 
 const getIcon = (type: string) => {
@@ -56,6 +57,8 @@ const getIcon = (type: string) => {
       return <Build className={`${colorClassMap["tool"].text}`} />;
     case "response":
       return <Message className={`${colorClassMap["response"].text}`} />;
+    case "mcp_tools":
+      return <List className={`${colorClassMap["mcp_tools"].text}`} />;
     default:
       return <Bolt className={`${colorClassMap["default"].text}`} />;
   }
@@ -205,6 +208,7 @@ export const TraceList = () => {
       return false;
     return true;
   });
+
   return (
     <div>
       <FilterBar
@@ -265,7 +269,7 @@ const TraceListItem = ({ trace }: { trace: Trace }) => {
         {trace.group_id}
       </td>
       <td className="px-4 py-2 font-mono text-xs text-gray-600 truncate max-w-xs">
-        {trace.metadata}
+        {trace.metadata == 'null' || trace.metadata == '""' ? "" : trace.metadata}
       </td>
     </tr>
   );
@@ -282,12 +286,13 @@ const SpanList = ({
   minTs: number;
   tickSize: number;
 }) => {
+  const {currentSpanDetail} = useAppContext();
   return (
     <div className="flex flex-col gap-2 w-full">
       {spans.map((span, idx) => (
         <div
           key={idx}
-          className={`flex flex-col gap-2 pl-${(level + 1) * 2}rem`}
+          className={`flex flex-col gap-2 pl-${(level + 1) * 2}rem ${currentSpanDetail?.span_id === span.span_id ? "bg-blue-100" : ""}`}
         >
           <SpanListItem
             key={span.span_id}
@@ -328,10 +333,6 @@ const SpanListItem = ({
   const duration = endTs - startTs;
   const startPercent = (startTs - minTs) / tickSize * 100;
   const widthPercent = (duration / tickSize) * 100;
-  console.log({
-    startPercent,
-    widthPercent,
-  })    
 
   return (
     <div
@@ -345,7 +346,7 @@ const SpanListItem = ({
           <h2 className="text-xs text-gray-500">
             {structuredSpan.span_data.type == "response"
               ? "POST /v1/responses"
-              : structuredSpan.span_data.name}
+              : structuredSpan.span_data.name || structuredSpan.span_data.type}
           </h2>
         }
       </div>
@@ -372,24 +373,45 @@ const SpanDetail = () => {
   const { currentSpanDetail } = useAppContext();
   const structuredSpan = JSON.parse(currentSpanDetail?.span_data || "{}");
 
-  const renderData = () => {
-    if (structuredSpan?.span_data?.type == "function") {
-      return (
+  const renderFunctionData = () => {
+    const input = structuredSpan?.span_data?.input;
+    const output = structuredSpan?.span_data?.output;
+    return (
         <>
           <h3 className="text-sm font-bold">Input</h3>
           <code className="text-xs text-gray-500 whitespace-pre-wrap break-words bg-gray-100 p-2 rounded-md font-mono">
-            {JSON.stringify(structuredSpan?.span_data?.input)}
+            {input}
           </code>
           <h3 className="text-sm font-bold">Output</h3>
           <code className="text-xs text-gray-500 whitespace-pre-wrap break-words bg-gray-100 p-2 rounded-md font-mono">
-            {JSON.stringify(structuredSpan?.span_data?.output)}
+            {output}
           </code>
         </>
-      );
+      )
+  }
+
+  const renderTitle = () => {
+    return (
+      <>
+        <h2 className="text-lg font-bold">
+          {structuredSpan?.span_data?.type == "response"
+            ? "POST /v1/responses"
+            : structuredSpan?.span_data?.name || structuredSpan?.span_data?.type}
+        </h2>
+        <span className="text-xs text-gray-500">
+          {getIcon(structuredSpan?.span_data?.type)}
+        </span>
+      </>
+    )
+  }
+
+  const renderData = () => {
+    if (structuredSpan?.span_data?.type == "function") {
+      return renderFunctionData();
     } else {
       return (
         <code className="text-xs text-gray-500 whitespace-pre-wrap break-words bg-gray-100 p-2 rounded-md font-mono">
-          {JSON.stringify(structuredSpan?.span_data)}
+          {JSON.stringify(structuredSpan?.span_data, null, 2)}
         </code>
       );
     }
@@ -397,16 +419,7 @@ const SpanDetail = () => {
 
   return (
     <div className="p-4 h-full  border-l border-gray-400">
-      <div className="flex flex-row gap-2 items-center">
-        <h2 className="text-lg font-bold">
-          {structuredSpan?.span_data?.type == "response"
-            ? "POST /v1/responses"
-            : structuredSpan?.span_data?.name}
-        </h2>
-        <span className="text-xs text-gray-500">
-          {getIcon(structuredSpan?.span_data?.type)}
-        </span>
-      </div>
+      <div className="flex flex-row gap-2 items-center">{renderTitle()}</div>
       <div className="flex flex-col gap-2 mt-2">{renderData()}</div>
     </div>
   );
@@ -430,7 +443,7 @@ export const TraceDetail = () => {
   }, [currentViewSpans]);
 
   return (
-    <div className="p-4 flex flex-row gap-4 h-full">
+    <div className="p-4 flex flex-row gap-4 h-full overflow-auto scrollbar-hide">
       <div className="w-[70%] flex-none">
         <SpanList
           spans={displaySpans}
@@ -439,7 +452,7 @@ export const TraceDetail = () => {
           tickSize={tickSize}
         />
       </div>
-      <div className="w-[30%] flex-none">
+      <div className="w-[30%] flex-none flex flex-col sticky top-0 max-h-full overflow-auto">
         <SpanDetail />
       </div>
     </div>
